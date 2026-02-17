@@ -6,7 +6,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class RidePoolingApplication {
-
 	public static void main(String[] args) {
         Dotenv dotenv = Dotenv.configure().load() ;
 
@@ -16,5 +15,4 @@ public class RidePoolingApplication {
 
 		SpringApplication.run(RidePoolingApplication.class, args);
 	}
-
 }
