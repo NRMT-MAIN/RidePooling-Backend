@@ -19,6 +19,9 @@ public class MatchingService {
     private final CabRepository cabRepository ;
     private final ConstraintValidator constraintValidator ;
 
+    private static final int MIN_POOL_SIZE = 2;
+
+
     @Transactional
     public void match(RideRequest newRequest) {
         String prefix = newRequest.getPickupGeohash().substring(0 , 5) ;
@@ -30,6 +33,10 @@ public class MatchingService {
                 Ride ride = rideRepository
                         .findByIdForUpdate(candidate.getRide().getId())
                         .orElseThrow() ;
+
+                if (ride.getStatus() != RideStatus.FORMING) {
+                    continue;
+                }
 
                 if(constraintValidator.canMerge(ride , candidate , newRequest)) {
                     attachToRide(ride , newRequest) ;
@@ -67,6 +74,12 @@ public class MatchingService {
         ride.setTotalSeatsUsed(ride.getTotalSeatsUsed() + request.getSeatsRequired());
 
         ride.setTotalLuggageUsed(ride.getTotalSeatsUsed() + request.getLuggageCount());
+
+        if(ride.getStatus() == RideStatus.FORMING &&
+                ride.getTotalSeatsUsed() >= MIN_POOL_SIZE
+        ) {
+            ride.transitionTo(RideStatus.CONFIRMED);
+        }
 
         request.setRide(ride);
         request.setStatus(RideRequestStatus.MATCHED);

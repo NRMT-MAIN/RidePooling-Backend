@@ -29,6 +29,10 @@ public class RideRequestService {
 
         Ride ride = request.getRide() ;
 
+        if(ride != null && ride.getStatus() == RideStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Cannot cancel after ride started.") ;
+        }
+
         request.setStatus(RideRequestStatus.CANCELLED);
         request.setRide(null);
 

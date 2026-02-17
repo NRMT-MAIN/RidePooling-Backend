@@ -39,4 +39,32 @@ public class Ride {
 
     @OneToMany(mappedBy = "ride", fetch = FetchType.LAZY)
     private List<RidePassenger> passengers ;
+
+    public void transitionTo(RideStatus newStatus) {
+        switch(this.status) {
+            case FORMING -> {
+                if(newStatus != RideStatus.CONFIRMED
+                && newStatus != RideStatus.CANCELLED) {
+                    throw new IllegalStateException("Invalid transition from Forming") ;
+                }
+            }
+
+            case CONFIRMED -> {
+                if (newStatus != RideStatus.IN_PROGRESS &&
+                        newStatus != RideStatus.CANCELLED) {
+                    throw new IllegalStateException("Invalid transition from CONFIRMED");
+                }
+            }
+
+            case IN_PROGRESS -> {
+                if (newStatus != RideStatus.COMPLETED) {
+                    throw new IllegalStateException("Invalid transition from IN_PROGRESS");
+                }
+            }
+
+            default -> throw new IllegalStateException("Terminal state reached");
+        }
+
+        this.status = newStatus ;
+    }
 }
