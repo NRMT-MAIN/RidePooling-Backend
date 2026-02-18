@@ -5,9 +5,9 @@ import com.nirmit.ride_pooling.repository.CabRepository;
 import com.nirmit.ride_pooling.repository.RideRepository;
 import com.nirmit.ride_pooling.repository.RideRequestRepository;
 import com.nirmit.ride_pooling.validators.ConstraintValidator;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 

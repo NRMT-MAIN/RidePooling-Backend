@@ -1,11 +1,14 @@
 package com.nirmit.ride_pooling.service;
 
+import com.nirmit.ride_pooling.dto.PassengerSummaryDTO;
+import com.nirmit.ride_pooling.dto.RideResponseDTO;
 import com.nirmit.ride_pooling.entity.Ride;
 import com.nirmit.ride_pooling.entity.RideStatus;
 import com.nirmit.ride_pooling.repository.RideRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 
 @Service
 @RequiredArgsConstructor
@@ -15,9 +18,7 @@ public class RideService {
 
     @Transactional
     public void startRide(Long rideId) {
-
-        Ride ride = rideRepository
-                .findByIdForUpdate(rideId)
+        Ride ride = rideRepository.findByIdForUpdate(rideId)
                 .orElseThrow(() ->
                         new RuntimeException("Ride not found"));
 
@@ -34,9 +35,7 @@ public class RideService {
 
     @Transactional
     public void completeRide(Long rideId) {
-
-        Ride ride = rideRepository
-                .findByIdForUpdate(rideId)
+        Ride ride = rideRepository.findByIdForUpdate(rideId)
                 .orElseThrow(() ->
                         new RuntimeException("Ride not found"));
 
@@ -49,5 +48,26 @@ public class RideService {
         ride.transitionTo(RideStatus.COMPLETED);
 
         rideRepository.save(ride);
+    }
+
+    @Transactional(readOnly = true)
+    public RideResponseDTO getRideDetails(Long rideId) {
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new RuntimeException("Ride not Found")) ;
+
+
+        return RideResponseDTO.builder()
+                .rideId(rideId)
+                .cabId(ride.getCab().getId())
+                .passengers(ride.getPassengers()
+                        .stream()
+                        .map(passenger -> PassengerSummaryDTO.builder()
+                                .passengerId(passenger.getPassenger().getId())
+                                .pickupOrder(passenger.getPickupOrder())
+                                .dropOrder(passenger.getDropOrder())
+                                .build()
+                        ).toList()
+                )
+                .build();
     }
 }

@@ -7,10 +7,10 @@ import com.nirmit.ride_pooling.entity.*;
 import com.nirmit.ride_pooling.event.RideRequestCreatedEvent;
 import com.nirmit.ride_pooling.repository.*;
 import com.nirmit.ride_pooling.utils.GeohashUtils;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,7 +27,7 @@ public class RideRequestService {
     private final IdempotencyKeyRepository idempotencyKeyRepository ;
     private final PricingSnapshotService pricingSnapshotService ;
 
-    @Transactional
+    @Transactional(readOnly = true)
     public RideRequestResponseDTO getRequestById(Long id) throws Exception {
 
         RideRequest request = rideRequestRepository
