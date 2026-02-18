@@ -1,13 +1,11 @@
 package com.nirmit.ride_pooling.service;
 
-import com.nirmit.ride_pooling.dto.CreateRideRequest;
+import com.nirmit.ride_pooling.dto.CancelResponseDTO;
+import com.nirmit.ride_pooling.dto.CreateRideRequestDTO;
 import com.nirmit.ride_pooling.dto.RideRequestResponseDTO;
 import com.nirmit.ride_pooling.entity.*;
 import com.nirmit.ride_pooling.event.RideRequestCreatedEvent;
-import com.nirmit.ride_pooling.repository.IdempotencyKeyRepository;
-import com.nirmit.ride_pooling.repository.PassengerRepository;
-import com.nirmit.ride_pooling.repository.RideRepository;
-import com.nirmit.ride_pooling.repository.RideRequestRepository;
+import com.nirmit.ride_pooling.repository.*;
 import com.nirmit.ride_pooling.utils.GeohashUtils;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -27,9 +25,35 @@ public class RideRequestService {
     private final PassengerRepository passengerRepository ;
     private final ApplicationEventPublisher eventPublisher ;
     private final IdempotencyKeyRepository idempotencyKeyRepository ;
+    private final PricingSnapshotService pricingSnapshotService ;
 
     @Transactional
-    public RideRequestResponseDTO createRequest(String idempotencyKey , CreateRideRequest dto) throws Exception {
+    public RideRequestResponseDTO getRequestById(Long id) throws Exception {
+
+        RideRequest request = rideRequestRepository
+                .findById(id)
+                .orElseThrow(() ->  {
+                    return new Exception("Request not found") ;
+                }) ;
+
+        Double price = pricingSnapshotService.fetchLatestPrice(request);
+
+        return RideRequestResponseDTO.builder()
+                .requestId(request.getId())
+                .status(request.getStatus().name())
+                .rideId(
+                        request.getRide() != null
+                                ? request.getRide().getId()
+                                : null
+                )
+                .estimatedPrice(price)
+                .message("Request fetched successfully")
+                .build();
+    }
+
+
+    @Transactional
+    public RideRequestResponseDTO createRequest(String idempotencyKey , CreateRideRequestDTO dto) throws Exception {
 
         Optional<IdempotencyKey> existing = idempotencyKeyRepository.findByIdempotencyKey(idempotencyKey) ;
 
@@ -92,12 +116,18 @@ public class RideRequestService {
     }
 
     @Transactional
-    public void cancelRequest(Long requestId) {
+    public CancelResponseDTO cancelRequest(Long requestId) {
         RideRequest request = rideRequestRepository
                 .findById(requestId)
                 .orElseThrow(() -> new RuntimeException("Request Not found"))  ;
 
-        if(request.getStatus() == RideRequestStatus.CANCELLED) return ;
+        if(request.getStatus() == RideRequestStatus.CANCELLED) {
+            return CancelResponseDTO.builder()
+                    .requestId(requestId)
+                    .status(RideRequestStatus.CANCELLED.name())
+                    .message("Already cancelled the ride")
+                    .build();
+        }
 
         Ride ride = request.getRide() ;
 
@@ -114,6 +144,11 @@ public class RideRequestService {
             handleRideRebalancing(ride , request) ;
         }
 
+        return CancelResponseDTO.builder()
+                .requestId(requestId)
+                .status(RideRequestStatus.CANCELLED.name())
+                .message("Ride Cancelled!")
+                .build();
     }
 
     private void handleRideRebalancing(Ride ride , RideRequest cancelledRequest) {

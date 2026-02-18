@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
-public class CreateRideRequest {
+public class CreateRideRequestDTO {
     @NotNull
     private Long passengerId ;
 

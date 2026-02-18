@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RideRequestRepository extends JpaRepository<RideRequest , Long> {
@@ -26,4 +27,8 @@ public interface RideRequestRepository extends JpaRepository<RideRequest , Long>
     ) ;
 
     List<RideRequest> findByRideId(Long rideId);
+
+    @Query("SELECT r FROM RideRequest r LEFT JOIN FETCH r.ride WHERE r.id = :id")
+    Optional<RideRequest> findByIdWithRide(@Param("id") Long id);
+
 }
