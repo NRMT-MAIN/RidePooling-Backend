@@ -7,9 +7,12 @@ import com.nirmit.ride_pooling.entity.Cab;
 import com.nirmit.ride_pooling.entity.CabStatus;
 import com.nirmit.ride_pooling.repository.CabRepository;
 import com.nirmit.ride_pooling.utils.GeohashUtils;
+import com.nirmit.ride_pooling.utils.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.NoSuchElementException;
 
 @Service
 @RequiredArgsConstructor
@@ -48,7 +51,7 @@ public class CabService {
     public void updateLocation(Long cabId, UpdateLocationDTO dto) {
 
         Cab cab = cabRepository.findByIdForUpdate(cabId)
-                .orElseThrow(() -> new RuntimeException("Cab not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Cab not found"));
 
         cab.setCurrentLat(dto.getLat());
         cab.setCurrentLng(dto.getLng());
@@ -62,7 +65,7 @@ public class CabService {
 
         Cab cab = cabRepository.findById(cabId)
                 .orElseThrow(() ->
-                        new RuntimeException("Cab not found"));
+                        new ResourceNotFoundException("Cab not found"));
 
         return CabResponseDTO.builder()
                 .id(cab.getId())

@@ -8,6 +8,7 @@ import com.nirmit.ride_pooling.entity.*;
 import com.nirmit.ride_pooling.event.RideRequestCreatedEvent;
 import com.nirmit.ride_pooling.repository.*;
 import com.nirmit.ride_pooling.utils.GeohashUtils;
+import com.nirmit.ride_pooling.utils.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -34,7 +35,7 @@ public class RideRequestService {
         RideRequest request = rideRequestRepository
                 .findById(id)
                 .orElseThrow(() ->  {
-                    return new Exception("Request not found") ;
+                    return new ResourceNotFoundException("Request not found") ;
                 }) ;
 
         Double price = pricingSnapshotService.fetchLatestPrice(request);
@@ -61,7 +62,7 @@ public class RideRequestService {
         if(existing.isPresent()) {
             RideRequest oldRequest = rideRequestRepository
                     .findById(existing.get().getRideRequestId())
-                    .orElseThrow() ;
+                    .orElseThrow(() -> new ResourceNotFoundException("Request Not Found")) ;
 
             return RideRequestResponseDTO.builder()
                     .requestId(oldRequest.getId())
@@ -75,7 +76,7 @@ public class RideRequestService {
         Optional<Passenger> passenger = passengerRepository.findById(dto.getPassengerId()) ;
 
         if(passenger.isEmpty()) {
-            throw new Exception("Passneger Not Found") ;
+            throw new ResourceNotFoundException("Passneger Not Found") ;
         }
 
         String pickupGeohash = GeohashUtils.encode(dto.getPickupLat(), dto.getPickupLng(), 6) ;
@@ -120,7 +121,7 @@ public class RideRequestService {
     public CancelResponseDTO cancelRequest(CancelRequestDTO dto) {
         RideRequest request = rideRequestRepository
                 .findById(dto.getRequestId())
-                .orElseThrow(() -> new RuntimeException("Request Not found"))  ;
+                .orElseThrow(() -> new ResourceNotFoundException("Request Not found"))  ;
 
         if(request.getStatus() == RideRequestStatus.CANCELLED) {
             return CancelResponseDTO.builder()
@@ -159,7 +160,7 @@ public class RideRequestService {
 
     private void handleRideRebalancing(Ride ride , RideRequest cancelledRequest) {
         Ride lockedRide = rideRepository.findByIdForUpdate(ride.getId())
-                .orElseThrow() ;
+                .orElseThrow(() -> new ResourceNotFoundException("Request Not found")) ;
 
         lockedRide.setTotalSeatsUsed(
                 lockedRide.getTotalSeatsUsed() - cancelledRequest.getSeatsRequired()

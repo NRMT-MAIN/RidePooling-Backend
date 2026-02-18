@@ -5,6 +5,7 @@ import com.nirmit.ride_pooling.dto.RideResponseDTO;
 import com.nirmit.ride_pooling.entity.Ride;
 import com.nirmit.ride_pooling.entity.RideStatus;
 import com.nirmit.ride_pooling.repository.RideRepository;
+import com.nirmit.ride_pooling.utils.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +21,7 @@ public class RideService {
     public void startRide(Long rideId) {
         Ride ride = rideRepository.findByIdForUpdate(rideId)
                 .orElseThrow(() ->
-                        new RuntimeException("Ride not found"));
+                        new ResourceNotFoundException("Ride not found"));
 
         if (ride.getStatus() != RideStatus.CONFIRMED) {
             throw new IllegalStateException(
@@ -37,7 +38,7 @@ public class RideService {
     public void completeRide(Long rideId) {
         Ride ride = rideRepository.findByIdForUpdate(rideId)
                 .orElseThrow(() ->
-                        new RuntimeException("Ride not found"));
+                        new ResourceNotFoundException("Ride not found"));
 
         if (ride.getStatus() != RideStatus.IN_PROGRESS) {
             throw new IllegalStateException(
@@ -53,7 +54,7 @@ public class RideService {
     @Transactional(readOnly = true)
     public RideResponseDTO getRideDetails(Long rideId) {
         Ride ride = rideRepository.findById(rideId)
-                .orElseThrow(() -> new RuntimeException("Ride not Found")) ;
+                .orElseThrow(() -> new ResourceNotFoundException("Ride not Found")) ;
 
 
         return RideResponseDTO.builder()
