@@ -4,6 +4,7 @@ import com.nirmit.ride_pooling.dto.CreateRideRequest;
 import com.nirmit.ride_pooling.dto.RideRequestResponseDTO;
 import com.nirmit.ride_pooling.entity.*;
 import com.nirmit.ride_pooling.event.RideRequestCreatedEvent;
+import com.nirmit.ride_pooling.repository.IdempotencyKeyRepository;
 import com.nirmit.ride_pooling.repository.PassengerRepository;
 import com.nirmit.ride_pooling.repository.RideRepository;
 import com.nirmit.ride_pooling.repository.RideRequestRepository;
@@ -25,9 +26,26 @@ public class RideRequestService {
     private final MatchingService matchingService ;
     private final PassengerRepository passengerRepository ;
     private final ApplicationEventPublisher eventPublisher ;
+    private final IdempotencyKeyRepository idempotencyKeyRepository ;
 
     @Transactional
-    public RideRequestResponseDTO createRequest(CreateRideRequest dto) throws Exception {
+    public RideRequestResponseDTO createRequest(String idempotencyKey , CreateRideRequest dto) throws Exception {
+
+        Optional<IdempotencyKey> existing = idempotencyKeyRepository.findByIdempotencyKey(idempotencyKey) ;
+
+        if(existing.isPresent()) {
+            RideRequest oldRequest = rideRequestRepository
+                    .findById(existing.get().getRideRequestId())
+                    .orElseThrow() ;
+
+            return RideRequestResponseDTO.builder()
+                    .requestId(oldRequest.getId())
+                    .status(oldRequest.getStatus().name())
+                    .rideId(null)
+                    .estimatedPrice(null)
+                    .message("Duplicate request detected")
+                    .build() ;
+        }
 
         Optional<Passenger> passenger = passengerRepository.findById(dto.getPassengerId()) ;
 
@@ -54,6 +72,13 @@ public class RideRequestService {
                 .build();
 
         rideRequestRepository.save(request) ;
+        IdempotencyKey keyRecord =  IdempotencyKey.builder()
+                        .idempotencyKey(idempotencyKey)
+                        .rideRequestId(request.getId())
+                        .createdAt(LocalDateTime.now())
+                        .build();
+
+        idempotencyKeyRepository.save(keyRecord) ;
 
         eventPublisher.publishEvent(new RideRequestCreatedEvent(request.getId()));
 
