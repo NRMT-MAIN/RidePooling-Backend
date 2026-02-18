@@ -1,16 +1,21 @@
 package com.nirmit.ride_pooling.service;
 
-import com.nirmit.ride_pooling.entity.Ride;
-import com.nirmit.ride_pooling.entity.RideRequest;
-import com.nirmit.ride_pooling.entity.RideRequestStatus;
-import com.nirmit.ride_pooling.entity.RideStatus;
+import com.nirmit.ride_pooling.dto.CreateRideRequest;
+import com.nirmit.ride_pooling.dto.RideRequestResponseDTO;
+import com.nirmit.ride_pooling.entity.*;
+import com.nirmit.ride_pooling.event.RideRequestCreatedEvent;
+import com.nirmit.ride_pooling.repository.PassengerRepository;
 import com.nirmit.ride_pooling.repository.RideRepository;
 import com.nirmit.ride_pooling.repository.RideRequestRepository;
+import com.nirmit.ride_pooling.utils.GeohashUtils;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +23,48 @@ public class RideRequestService {
     private final RideRequestRepository rideRequestRepository ;
     private final RideRepository rideRepository ;
     private final MatchingService matchingService ;
+    private final PassengerRepository passengerRepository ;
+    private final ApplicationEventPublisher eventPublisher ;
+
+    @Transactional
+    public RideRequestResponseDTO createRequest(CreateRideRequest dto) throws Exception {
+
+        Optional<Passenger> passenger = passengerRepository.findById(dto.getPassengerId()) ;
+
+        if(passenger.isEmpty()) {
+            throw new Exception("Passneger Not Found") ;
+        }
+
+        String pickupGeohash = GeohashUtils.encode(dto.getPickupLat(), dto.getPickupLng(), 6) ;
+        String dropGeohash = GeohashUtils.encode(dto.getDropLat() , dto.getDropLng() , 6) ;
+
+        RideRequest request = RideRequest.builder()
+                .passenger(passenger.get())
+                .pickupLat(dto.getPickupLat())
+                .pickupLng(dto.getPickupLng())
+                .dropLat(dto.getDropLat())
+                .dropLng(dto.getDropLng())
+                .pickupGeohash(pickupGeohash)
+                .dropGeohash(dropGeohash)
+                .seatsRequired(dto.getSeatsRequired())
+                .luggageCount(dto.getLuggageCount())
+                .maxDetourMinutes(dto.getMaxDetourMinutes())
+                .status(RideRequestStatus.WAITING)
+                .requestTimestamp(LocalDateTime.now())
+                .build();
+
+        rideRequestRepository.save(request) ;
+
+        eventPublisher.publishEvent(new RideRequestCreatedEvent(request.getId()));
+
+        return RideRequestResponseDTO.builder()
+                .requestId(request.getId())
+                .status(request.getStatus().name())
+                .rideId(null)
+                .estimatedPrice(null)
+                .message("Request Submitted Succesfully")
+                .build() ;
+    }
 
     @Transactional
     public void cancelRequest(Long requestId) {
@@ -69,13 +116,13 @@ public class RideRequestService {
         for(RideRequest rr : remainingRequests) {
             rr.setRide(null);
             rr.setStatus(RideRequestStatus.WAITING);
-
-            rideRequestRepository.save(rr) ;
         }
 
         ride.setStatus(RideStatus.CANCELLED);
         rideRepository.save(ride) ;
 
-        remainingRequests.forEach(matchingService::match);
+        remainingRequests.forEach(request -> {
+            eventPublisher.publishEvent(new RideRequestCreatedEvent(request.getId()));
+        });
     }
 }
