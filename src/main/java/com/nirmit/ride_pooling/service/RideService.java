@@ -7,12 +7,14 @@ import com.nirmit.ride_pooling.entity.RideStatus;
 import com.nirmit.ride_pooling.repository.RideRepository;
 import com.nirmit.ride_pooling.utils.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RideService {
 
     private final RideRepository rideRepository;
@@ -28,7 +30,7 @@ public class RideService {
                     "Ride must be CONFIRMED before starting"
             );
         }
-
+        log.info("Ride started with id : " + ride.getId()) ;
         ride.transitionTo(RideStatus.IN_PROGRESS);
 
         rideRepository.save(ride);
@@ -46,6 +48,7 @@ public class RideService {
             );
         }
 
+        log.info("Ride completed with id : " + ride.getId()) ;
         ride.transitionTo(RideStatus.COMPLETED);
 
         rideRepository.save(ride);
@@ -56,7 +59,7 @@ public class RideService {
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ride not Found")) ;
 
-
+        log.info("Ride fetched with id : " + ride.getId()) ;
         return RideResponseDTO.builder()
                 .rideId(rideId)
                 .cabId(ride.getCab().getId())

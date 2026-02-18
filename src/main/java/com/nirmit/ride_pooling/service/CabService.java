@@ -9,6 +9,9 @@ import com.nirmit.ride_pooling.repository.CabRepository;
 import com.nirmit.ride_pooling.utils.GeohashUtils;
 import com.nirmit.ride_pooling.utils.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,8 +19,8 @@ import java.util.NoSuchElementException;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CabService {
-
     private final CabRepository cabRepository;
 
     @Transactional
@@ -35,6 +38,8 @@ public class CabService {
                 .build();
 
         cabRepository.save(cab);
+
+        log.info("Cab created succesfully with id : " + cab.getId());
 
         return CabResponseDTO.builder()
                 .id(cab.getId())
@@ -58,6 +63,8 @@ public class CabService {
 
         String currentGeoHash =GeohashUtils.encode(dto.getLat(), dto.getLng(), 6) ;
         cab.setCurrentGeohash(currentGeoHash);
+
+        log.info("Cab location updated succesfully with id : " + cab.getId());
     }
 
     @Transactional(readOnly = true)
@@ -66,6 +73,8 @@ public class CabService {
         Cab cab = cabRepository.findById(cabId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Cab not found"));
+
+        log.info("Cab fetched succesfully with id : " + cab.getId());
 
         return CabResponseDTO.builder()
                 .id(cab.getId())

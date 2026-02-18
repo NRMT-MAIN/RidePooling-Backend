@@ -10,6 +10,7 @@ import com.nirmit.ride_pooling.repository.*;
 import com.nirmit.ride_pooling.utils.GeohashUtils;
 import com.nirmit.ride_pooling.utils.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RideRequestService {
     private final RideRequestRepository rideRequestRepository ;
     private final RideRepository rideRepository ;
@@ -40,6 +42,7 @@ public class RideRequestService {
 
         Double price = pricingSnapshotService.fetchLatestPrice(request);
 
+        log.info("Ride Request fetched with id : " + request.getId());
         return RideRequestResponseDTO.builder()
                 .requestId(request.getId())
                 .status(request.getStatus().name())
@@ -60,6 +63,7 @@ public class RideRequestService {
         Optional<IdempotencyKey> existing = idempotencyKeyRepository.findByIdempotencyKey(idempotencyKey) ;
 
         if(existing.isPresent()) {
+            log.warn("Idempotency key existed!");
             RideRequest oldRequest = rideRequestRepository
                     .findById(existing.get().getRideRequestId())
                     .orElseThrow(() -> new ResourceNotFoundException("Request Not Found")) ;
@@ -76,6 +80,7 @@ public class RideRequestService {
         Optional<Passenger> passenger = passengerRepository.findById(dto.getPassengerId()) ;
 
         if(passenger.isEmpty()) {
+            log.warn("Passenger not found in the database!");
             throw new ResourceNotFoundException("Passneger Not Found") ;
         }
 
@@ -105,9 +110,12 @@ public class RideRequestService {
                         .build();
 
         idempotencyKeyRepository.save(keyRecord) ;
+        log.info("Idempotency key created");
 
         eventPublisher.publishEvent(new RideRequestCreatedEvent(request.getId()));
+        log.info("Ride Request is published with id : " + request.getId());
 
+        log.info("Ride Request is created with id : " + request.getId());
         return RideRequestResponseDTO.builder()
                 .requestId(request.getId())
                 .status(request.getStatus().name())
@@ -151,6 +159,7 @@ public class RideRequestService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
+        log.info("Ride request got cancelled wit id : " + ride.getId());
         return CancelResponseDTO.builder()
                 .requestId(dto.getRequestId())
                 .status(RideRequestStatus.CANCELLED.name())
@@ -189,6 +198,7 @@ public class RideRequestService {
         rideRepository.save(ride) ;
 
         remainingRequests.forEach(request -> {
+            log.info("Ride Request is published with id : " + request.getId());
             eventPublisher.publishEvent(new RideRequestCreatedEvent(request.getId()));
         });
     }

@@ -6,11 +6,13 @@ import com.nirmit.ride_pooling.repository.RideRepository;
 import com.nirmit.ride_pooling.repository.RideRequestRepository;
 import com.nirmit.ride_pooling.validators.ConstraintValidator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MatchingService {
@@ -67,6 +69,7 @@ public class MatchingService {
         request.setRide(ride);
         request.setStatus(RideRequestStatus.WAITING);
 
+        log.info("Ride created with id : " + ride.getId());
         rideRequestRepository.save(request) ;
     }
 
@@ -78,12 +81,13 @@ public class MatchingService {
         if(ride.getStatus() == RideStatus.FORMING &&
                 ride.getTotalSeatsUsed() >= MIN_POOL_SIZE
         ) {
+            log.info("Ride is confirmed with id : " + ride.getId());
             ride.transitionTo(RideStatus.CONFIRMED);
         }
 
         request.setRide(ride);
         request.setStatus(RideRequestStatus.MATCHED);
-
+        log.info("Ride Request is matched with id : " + request.getId());
         rideRepository.save(ride) ;
         rideRequestRepository.save(request) ;
     }
