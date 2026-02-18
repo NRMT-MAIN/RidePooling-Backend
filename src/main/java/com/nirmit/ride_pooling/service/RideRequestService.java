@@ -1,5 +1,6 @@
 package com.nirmit.ride_pooling.service;
 
+import com.nirmit.ride_pooling.dto.CancelRequestDTO;
 import com.nirmit.ride_pooling.dto.CancelResponseDTO;
 import com.nirmit.ride_pooling.dto.CreateRideRequestDTO;
 import com.nirmit.ride_pooling.dto.RideRequestResponseDTO;
@@ -116,14 +117,14 @@ public class RideRequestService {
     }
 
     @Transactional
-    public CancelResponseDTO cancelRequest(Long requestId) {
+    public CancelResponseDTO cancelRequest(CancelRequestDTO dto) {
         RideRequest request = rideRequestRepository
-                .findById(requestId)
+                .findById(dto.getRequestId())
                 .orElseThrow(() -> new RuntimeException("Request Not found"))  ;
 
         if(request.getStatus() == RideRequestStatus.CANCELLED) {
             return CancelResponseDTO.builder()
-                    .requestId(requestId)
+                    .requestId(dto.getRequestId())
                     .status(RideRequestStatus.CANCELLED.name())
                     .message("Already cancelled the ride")
                     .build();
@@ -143,9 +144,14 @@ public class RideRequestService {
         if(ride != null) {
             handleRideRebalancing(ride , request) ;
         }
+        Cancellation cancellation = Cancellation.builder()
+                .rideRequestId(ride.getId())
+                .reason(dto.getMessage())
+                .createdAt(LocalDateTime.now())
+                .build();
 
         return CancelResponseDTO.builder()
-                .requestId(requestId)
+                .requestId(dto.getRequestId())
                 .status(RideRequestStatus.CANCELLED.name())
                 .message("Ride Cancelled!")
                 .build();
