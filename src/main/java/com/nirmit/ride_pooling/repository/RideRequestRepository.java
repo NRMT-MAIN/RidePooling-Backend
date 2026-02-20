@@ -1,6 +1,7 @@
 package com.nirmit.ride_pooling.repository;
 
 import com.nirmit.ride_pooling.entity.RideRequest;
+import com.nirmit.ride_pooling.entity.RideRequestStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -30,5 +31,15 @@ public interface RideRequestRepository extends JpaRepository<RideRequest , Long>
 
     @Query("SELECT r FROM RideRequest r LEFT JOIN FETCH r.ride WHERE r.id = :id")
     Optional<RideRequest> findByIdWithRide(@Param("id") Long id);
+
+    @Query(value = """
+        SELECT * FROM ride_requests
+        WHERE id = :id
+        FOR UPDATE
+        """, nativeQuery = true)
+    Optional<RideRequest> findByIdForUpdate(@Param("id") Long id);
+
+
+    List<RideRequest> findTop50ByStatusOrderByRequestTimestampAsc(RideRequestStatus status) ;
 
 }

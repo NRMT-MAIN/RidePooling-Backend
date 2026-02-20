@@ -10,85 +10,210 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MatchingService {
-    private final RideRepository rideRepository ;
-    private final RideRequestRepository rideRequestRepository ;
-    private final CabRepository cabRepository ;
-    private final ConstraintValidator constraintValidator ;
+
+    private final RideRepository rideRepository;
+    private final RideRequestRepository rideRequestRepository;
+    private final CabRepository cabRepository;
+    private final ConstraintValidator constraintValidator;
 
     private static final int MIN_POOL_SIZE = 2;
 
-
     @Transactional
-    public void match(RideRequest newRequest) {
-        String prefix = newRequest.getPickupGeohash().substring(0 , 5) ;
+    public void match(Long requestId) {
 
-        List<RideRequest> candidates = rideRequestRepository.findAndLockCandidates(prefix , 10) ;
+        RideRequest newRequest = rideRequestRepository
+                .findByIdForUpdate(requestId)
+                .orElseThrow();
 
-        for(RideRequest candidate : candidates) {
-            if (candidate.getRide() != null) {
-                Ride ride = rideRepository
-                        .findByIdForUpdate(candidate.getRide().getId())
-                        .orElseThrow() ;
+        if (newRequest.getRide() != null) {
+            log.warn("Request already matched: {}", requestId);
+            return;
+        }
 
-                if (ride.getStatus() != RideStatus.FORMING) {
-                    continue;
-                }
+        String prefix = newRequest.getPickupGeohash().substring(0, 5);
 
-                if(constraintValidator.canMerge(ride , candidate , newRequest)) {
-                    attachToRide(ride , newRequest) ;
-                    return;
-                }
+        List<RideRequest> candidates =
+                rideRequestRepository.findAndLockCandidates(prefix, 10);
+
+        log.info("Candidates found: {}", candidates.size());
+
+
+        for (RideRequest candidate : candidates) {
+
+            if (candidate.getRide() == null) continue;
+
+            Ride ride = rideRepository
+                    .findByIdForUpdate(candidate.getRide().getId())
+                    .orElse(null);
+
+            if (ride == null || ride.getStatus() != RideStatus.FORMING) continue;
+
+            List<RideRequest> passengers =
+                    rideRequestRepository.findByRideId(ride.getId());
+
+            if (canMergeWithRide(ride, passengers, newRequest)) {
+                attachToRide(ride, newRequest);
+                rideRepository.save(ride);
+
+                log.info("Attached request {} to ride {}",
+                        newRequest.getId(), ride.getId());
+
+                return;
             }
         }
 
-        createNewRide(newRequest) ;
-    }
 
-    private void createNewRide(RideRequest request) {
-        Cab availableCab = cabRepository
-                .findByStatus(CabStatus.AVAILABLE)
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("No cab available")) ;
+        Cab cab = cabRepository
+                .findAndLockAvailableCab(CabStatus.AVAILABLE.name())
+                .orElse(null);
 
-        Ride ride = Ride.builder()
-                .cab(availableCab)
-                .status(RideStatus.FORMING)
-                .totalSeatsUsed(request.getSeatsRequired())
-                .totalLuggageUsed(request.getLuggageCount())
-                .estimatedTotalTime(0)
-                .build();
-
-        rideRepository.save(ride) ;
-        request.setRide(ride);
-        request.setStatus(RideRequestStatus.WAITING);
-
-        log.info("Ride created with id : " + ride.getId());
-        rideRequestRepository.save(request) ;
-    }
-
-    private void attachToRide(Ride ride , RideRequest request) {
-        ride.setTotalSeatsUsed(ride.getTotalSeatsUsed() + request.getSeatsRequired());
-
-        ride.setTotalLuggageUsed(ride.getTotalSeatsUsed() + request.getLuggageCount());
-
-        if(ride.getStatus() == RideStatus.FORMING &&
-                ride.getTotalSeatsUsed() >= MIN_POOL_SIZE
-        ) {
-            log.info("Ride is confirmed with id : " + ride.getId());
-            ride.transitionTo(RideStatus.CONFIRMED);
+        if (cab == null) {
+            markWaiting(newRequest);
+            return;
         }
 
-        request.setRide(ride);
-        request.setStatus(RideRequestStatus.MATCHED);
-        log.info("Ride Request is matched with id : " + request.getId());
-        rideRepository.save(ride) ;
-        rideRequestRepository.save(request) ;
+        int maxSeats = cab.getTotalSeats();
+        int maxLuggage = cab.getLuggageCapacity();
+
+        List<RideRequest> waiting = candidates.stream()
+                .filter(r -> r.getRide() == null)
+                .toList();
+
+        List<RideRequest> group = new ArrayList<>();
+
+        int currentSeats = 0;
+        int currentLuggage = 0;
+
+        // 🔹 Add new request first (anchor)
+        group.add(newRequest);
+        currentSeats += newRequest.getSeatsRequired();
+        currentLuggage += newRequest.getLuggageCount();
+
+        for (RideRequest req : waiting) {
+
+            if (req.getId().equals(newRequest.getId())) continue;
+
+            if (canMergeInGroup(group, req,
+                    currentSeats, currentLuggage,
+                    maxSeats, maxLuggage)) {
+
+                group.add(req);
+                currentSeats += req.getSeatsRequired();
+                currentLuggage += req.getLuggageCount();
+            }
+        }
+
+        if (group.size() < MIN_POOL_SIZE) {
+            markWaiting(newRequest);
+            return;
+        }
+
+        createRide(cab, group);
+    }
+
+
+    private boolean canMergeInGroup(List<RideRequest> group,
+                                    RideRequest incoming,
+                                    int currentSeats,
+                                    int currentLuggage,
+                                    int maxSeats,
+                                    int maxLuggage) {
+
+        int newSeats = currentSeats + incoming.getSeatsRequired();
+        int newLuggage = currentLuggage + incoming.getLuggageCount();
+
+        if (newSeats > maxSeats) return false;
+        if (newLuggage > maxLuggage) return false;
+
+        if (group.isEmpty()) return true;
+
+        return constraintValidator.areRequestsCompatible(
+                group.get(0), incoming
+        );
+    }
+
+    private boolean canMergeWithRide(Ride ride,
+                                     List<RideRequest> passengers,
+                                     RideRequest incoming) {
+
+        if (!constraintValidator.canFitInRide(ride, incoming)) {
+            return false;
+        }
+
+        for (RideRequest existing : passengers) {
+            if (!constraintValidator.areRequestsCompatible(existing, incoming)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void createRide(Cab cab, List<RideRequest> group) {
+
+        cab.setStatus(CabStatus.BUSY);
+        cabRepository.saveAndFlush(cab);
+
+        Ride ride = Ride.builder()
+                .cab(cab)
+                .status(RideStatus.FORMING)
+                .totalSeatsUsed(0)
+                .totalLuggageUsed(0)
+                .build();
+
+        rideRepository.save(ride);
+
+        for (RideRequest req : group) {
+            attachToRide(ride, req);
+        }
+
+        ride.transitionTo(RideStatus.CONFIRMED);
+        rideRepository.save(ride);
+
+        log.info("Ride {} created with {} passengers",
+                ride.getId(), group.size());
+    }
+
+    private void attachToRide(Ride ride, RideRequest request) {
+
+        RideRequest locked = rideRequestRepository
+                .findByIdForUpdate(request.getId())
+                .orElseThrow();
+
+        if (locked.getRide() != null) {
+            log.warn("Request already matched: {}", locked.getId());
+            return;
+        }
+
+        ride.setTotalSeatsUsed(
+                ride.getTotalSeatsUsed() + locked.getSeatsRequired()
+        );
+
+        ride.setTotalLuggageUsed(
+                ride.getTotalLuggageUsed() + locked.getLuggageCount()
+        );
+
+        locked.setRide(ride);
+        locked.setStatus(RideRequestStatus.MATCHED);
+
+        rideRequestRepository.save(locked);
+
+        log.info("Request {} attached to ride {}",
+                locked.getId(), ride.getId());
+    }
+
+
+    private void markWaiting(RideRequest request) {
+        request.setStatus(RideRequestStatus.WAITING);
+        rideRequestRepository.save(request);
+
+        log.info("Request {} marked as WAITING", request.getId());
     }
 }

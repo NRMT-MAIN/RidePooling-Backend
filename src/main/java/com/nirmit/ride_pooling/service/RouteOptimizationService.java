@@ -20,25 +20,49 @@ public class RouteOptimizationService {
         return (int) (hours * 60);
     }
 
-    public boolean isDetourAcceptable(RideRequest existing,
-                                      RideRequest incoming) {
+    public boolean isDetourAcceptable(RideRequest e, RideRequest i) {
 
-        int directTimeExisting = estimateTravelTimeMinutes(
-                existing.getPickupLat(), existing.getPickupLng(),
-                existing.getDropLat(), existing.getDropLng()
+        int directE = estimateTravelTimeMinutes(
+                e.getPickupLat(), e.getPickupLng(),
+                e.getDropLat(), e.getDropLng()
         );
 
-        int directTimeIncoming = estimateTravelTimeMinutes(
-                incoming.getPickupLat(), incoming.getPickupLng(),
-                incoming.getDropLat(), incoming.getDropLng()
+        int directI = estimateTravelTimeMinutes(
+                i.getPickupLat(), i.getPickupLng(),
+                i.getDropLat(), i.getDropLng()
         );
 
-        int combinedTime = directTimeExisting + directTimeIncoming;
+        int option1 = routeTime(
+                e.getPickupLat(), e.getPickupLng(),
+                i.getPickupLat(), i.getPickupLng(),
+                e.getDropLat(), e.getDropLng(),
+                i.getDropLat(), i.getDropLng()
+        );
 
-        return combinedTime <=
-                (directTimeExisting + existing.getMaxDetourMinutes())
+        int option2 = routeTime(
+                i.getPickupLat(), i.getPickupLng(),
+                e.getPickupLat(), e.getPickupLng(),
+                i.getDropLat(), i.getDropLng(),
+                e.getDropLat(), e.getDropLng()
+        );
+
+        int sharedTime = Math.min(option1, option2);
+
+        int detourE = sharedTime - directE;
+        int detourI = sharedTime - directI;
+
+        return detourE <= e.getMaxDetourMinutes()
                 &&
-                combinedTime <=
-                        (directTimeIncoming + incoming.getMaxDetourMinutes());
+                detourI <= i.getMaxDetourMinutes();
+    }
+
+    private int routeTime(double lat1, double lng1,
+                          double lat2, double lng2,
+                          double lat3, double lng3,
+                          double lat4, double lng4) {
+
+        return estimateTravelTimeMinutes(lat1, lng1, lat2, lng2)
+                + estimateTravelTimeMinutes(lat2, lng2, lat3, lng3)
+                + estimateTravelTimeMinutes(lat3, lng3, lat4, lng4);
     }
 }

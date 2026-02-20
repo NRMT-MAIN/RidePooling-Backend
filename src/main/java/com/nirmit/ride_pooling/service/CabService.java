@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.NoSuchElementException;
 
 @Service
@@ -22,6 +23,23 @@ import java.util.NoSuchElementException;
 @Slf4j
 public class CabService {
     private final CabRepository cabRepository;
+
+    public Cab selectCab(double lat, double lng) {
+        List<Cab> nearest = cabRepository.findNearestCabs(lat, lng);
+
+        for (Cab cab : nearest) {
+            Cab lockedCab = cabRepository.findByIdForUpdate(cab.getId())
+                    .orElseThrow();
+            if (lockedCab.getStatus() == CabStatus.AVAILABLE) {
+                lockedCab.setStatus(CabStatus.BUSY);
+                cabRepository.save(lockedCab);
+                return lockedCab;
+            }
+        }
+
+        throw new RuntimeException("No available cab found");
+    }
+
 
     @Transactional
     public CabResponseDTO createCab(CreateCabRequestDTO dto) {

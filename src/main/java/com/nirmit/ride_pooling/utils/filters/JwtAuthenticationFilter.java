@@ -29,35 +29,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String authHeader =
-                request.getHeader("Authorization");
+        try {
+            String authHeader =
+                    request.getHeader("Authorization");
 
-        if (authHeader != null &&
-                authHeader.startsWith("Bearer ")) {
+            if (authHeader != null &&
+                    authHeader.startsWith("Bearer ")) {
 
-            String token =
-                    authHeader.substring(7);
+                String token =
+                        authHeader.substring(7);
 
-            Claims claims = jwtUtil.extractClaims(token);
+                Claims claims = jwtUtil.extractClaims(token);
 
-            String username = claims.getSubject();
+                String username = claims.getSubject();
 
-            User user = userRepository.findByUsername(username)
-                            .orElseThrow();
+                User user = userRepository.findByUsername(username)
+                        .orElseThrow();
 
-            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                            user,
-                            null,
-                            List.of(
-                                    new SimpleGrantedAuthority(
-                                            "ROLE_" + user.getRole().name()
-                                    )
-                            )
-                    );
+                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                        user,
+                        null,
+                        List.of(
+                                new SimpleGrantedAuthority(
+                                        "ROLE_" + user.getRole().name()
+                                )
+                        )
+                );
 
-            SecurityContextHolder.getContext().setAuthentication(auth);
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
+
+            filterChain.doFilter(request, response);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage()) ;
         }
-
-        filterChain.doFilter(request, response);
     }
 }

@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -25,11 +26,11 @@ import java.util.Optional;
 public class RideRequestService {
     private final RideRequestRepository rideRequestRepository ;
     private final RideRepository rideRepository ;
-    private final MatchingService matchingService ;
     private final PassengerRepository passengerRepository ;
-    private final ApplicationEventPublisher eventPublisher ;
     private final IdempotencyKeyRepository idempotencyKeyRepository ;
     private final PricingSnapshotService pricingSnapshotService ;
+    private final ApplicationEventPublisher eventPublisher ;
+    private final  MatchingService matchingService ;
 
     @Transactional(readOnly = true)
     public RideRequestResponseDTO getRequestById(Long id) throws Exception {
@@ -71,7 +72,9 @@ public class RideRequestService {
             return RideRequestResponseDTO.builder()
                     .requestId(oldRequest.getId())
                     .status(oldRequest.getStatus().name())
-                    .rideId(null)
+                    .rideId( oldRequest.getRide() != null
+                            ? oldRequest.getRide().getId()
+                            : null)
                     .estimatedPrice(null)
                     .message("Duplicate request detected")
                     .build() ;
@@ -102,6 +105,7 @@ public class RideRequestService {
                 .requestTimestamp(LocalDateTime.now())
                 .build();
 
+
         rideRequestRepository.save(request) ;
         IdempotencyKey keyRecord =  IdempotencyKey.builder()
                         .idempotencyKey(idempotencyKey)
@@ -114,7 +118,6 @@ public class RideRequestService {
 
         eventPublisher.publishEvent(new RideRequestCreatedEvent(request.getId()));
         log.info("Ride Request is published with id : " + request.getId());
-
         log.info("Ride Request is created with id : " + request.getId());
         return RideRequestResponseDTO.builder()
                 .requestId(request.getId())
@@ -154,12 +157,12 @@ public class RideRequestService {
             handleRideRebalancing(ride , request) ;
         }
         Cancellation cancellation = Cancellation.builder()
-                .rideRequestId(ride.getId())
+                .rideRequestId(request.getId())
                 .reason(dto.getMessage())
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        log.info("Ride request got cancelled wit id : " + ride.getId());
+        log.info("Ride request got cancelled wit id : " + request.getId());
         return CancelResponseDTO.builder()
                 .requestId(dto.getRequestId())
                 .status(RideRequestStatus.CANCELLED.name())
@@ -196,7 +199,6 @@ public class RideRequestService {
 
         ride.setStatus(RideStatus.CANCELLED);
         rideRepository.save(ride) ;
-
         remainingRequests.forEach(request -> {
             log.info("Ride Request is published with id : " + request.getId());
             eventPublisher.publishEvent(new RideRequestCreatedEvent(request.getId()));

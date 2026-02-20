@@ -59,7 +59,7 @@ public class GlobalExceptionHandler {
         ApiErrorResponseDTO response = ApiErrorResponseDTO.builder()
                         .status(500)
                         .errorCode("INTERNAL_SERVER_ERROR")
-                        .message("Something went wrong")
+                        .message(ex.getMessage())
                         .timestamp(LocalDateTime.now())
                         .build();
 

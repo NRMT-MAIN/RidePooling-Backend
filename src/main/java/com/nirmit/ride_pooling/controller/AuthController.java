@@ -1,18 +1,15 @@
 package com.nirmit.ride_pooling.controller;
 
-import com.nirmit.ride_pooling.dto.LoginDTO;
-import com.nirmit.ride_pooling.dto.LoginResponseDTO;
-import com.nirmit.ride_pooling.dto.RegisterDTO;
-import com.nirmit.ride_pooling.entity.Role;
+import com.nirmit.ride_pooling.dto.*;
 import com.nirmit.ride_pooling.entity.User;
-import com.nirmit.ride_pooling.repository.UserRepository;
+import com.nirmit.ride_pooling.service.UserService;
 import com.nirmit.ride_pooling.utils.JWTUtil;
 import com.nirmit.ride_pooling.utils.exceptions.InvalidStateException;
+import com.nirmit.ride_pooling.utils.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,55 +21,30 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
     private final JWTUtil jwtUtil;
+    private final UserService userService ;
 
-    @PostMapping("/cab/register")
-    public String registerDriver(@RequestBody RegisterDTO dto) {
+    @PostMapping("/driver/register")
+    public ResponseEntity<RegisterResponseDriverDTO> registerDriver(@RequestBody RegisterDTO dto) {
 
-        User user = User.builder()
-                .username(dto.getUsername())
-                .password(passwordEncoder.encode(dto.getPassword()))
-                .role(Role.DRIVER)
-                .build();
-
-        userRepository.save(user);
-        log.info("Driver register successfully with id : " + user.getId());
-        return "Driver registered successfully";
+        RegisterResponseDriverDTO response = userService.registerDriver(dto) ;
+        log.info("Driver register successfully with id : " + response.getDriverId());
+        return new ResponseEntity<>(response , HttpStatus.CREATED);
     }
 
     @PostMapping("/passenger/register")
-    public String registerPassenger(@RequestBody RegisterDTO dto) {
-        User user = User.builder()
-                .username(dto.getUsername())
-                .password(passwordEncoder.encode(dto.getPassword()))
-                .role(Role.PASSENGER)
-                .build();
+    public ResponseEntity<RegisterResponsePassengerDTO> registerPassenger(@RequestBody RegisterDTO dto) {
 
-        userRepository.save(user);
 
-        log.info("Passenger register successfully with id : " + user.getId());
-        return "User registered successfully";
+        RegisterResponsePassengerDTO response = userService.registerPassenger(dto) ;
+
+        log.info("Passenger register successfully with id : " + response.getPassengerId());
+        return new ResponseEntity<>(response , HttpStatus.CREATED);
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDTO> login(@RequestBody LoginDTO dto) {
-        User user = userRepository
-                .findByUsername(dto.getUsername())
-                .orElseThrow();
-
-        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            log.warn("Wrong Password for username : " + dto.getUsername());
-            throw new InvalidStateException("Invalid credentials");
-        }
-        String token = jwtUtil.generateToken(user) ;
-
-        LoginResponseDTO response = LoginResponseDTO.builder()
-                .username(dto.getUsername())
-                .message("Hello " + dto.getUsername() + "!")
-                .token(token)
-                .build();
+        LoginResponseDTO response = userService.login(dto) ;
         return new ResponseEntity<>(response , HttpStatus.ACCEPTED);
     }
 }

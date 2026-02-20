@@ -25,6 +25,6 @@ public class RideRequestEventListener {
                 .orElseThrow() ;
 
         log.info("Matching Ride Request with id : " + request.getId());
-        matchingService.match(request);
+        matchingService.match(request.getId());
     }
 }
