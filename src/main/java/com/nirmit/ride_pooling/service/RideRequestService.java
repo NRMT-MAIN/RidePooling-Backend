@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +29,7 @@ public class RideRequestService {
     private final IdempotencyKeyRepository idempotencyKeyRepository ;
     private final PricingSnapshotService pricingSnapshotService ;
     private final ApplicationEventPublisher eventPublisher ;
-    private final  MatchingService matchingService ;
+    private CancellationRepository cancellationRepository ;
 
     @Transactional(readOnly = true)
     public RideRequestResponseDTO getRequestById(Long id) throws Exception {
@@ -158,9 +157,11 @@ public class RideRequestService {
         }
         Cancellation cancellation = Cancellation.builder()
                 .rideRequestId(request.getId())
-                .reason(dto.getMessage())
+                .reason(dto.getReason())
                 .createdAt(LocalDateTime.now())
                 .build();
+
+        cancellationRepository.save(cancellation) ;
 
         log.info("Ride request got cancelled wit id : " + request.getId());
         return CancelResponseDTO.builder()

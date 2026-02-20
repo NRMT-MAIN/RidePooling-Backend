@@ -26,7 +26,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())   // new syntax for disabling CSRF
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/auth/**" , "/swagger-ui/**" , "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/v1/cabs/**").hasAnyRole("DRIVER" , "ADMIN")
                         .requestMatchers("/api/v1/rides/**").hasAnyRole("ADMIN", "DRIVER")
                         .requestMatchers("/api/v1/ride-requests/**").hasRole("PASSENGER")

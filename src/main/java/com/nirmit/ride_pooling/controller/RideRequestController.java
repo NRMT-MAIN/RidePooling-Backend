@@ -4,13 +4,11 @@ import com.nirmit.ride_pooling.dto.CancelRequestDTO;
 import com.nirmit.ride_pooling.dto.CancelResponseDTO;
 import com.nirmit.ride_pooling.dto.CreateRideRequestDTO;
 import com.nirmit.ride_pooling.dto.RideRequestResponseDTO;
-import com.nirmit.ride_pooling.entity.Passenger;
 import com.nirmit.ride_pooling.service.RideRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -29,8 +27,8 @@ public class RideRequestController {
     }
 
     @PostMapping("/cancel")
-    public ResponseEntity<CancelResponseDTO> cancelRequest(@RequestBody CancelRequestDTO body) {
-        CancelResponseDTO response = rideRequestService.cancelRequest(body);
+    public ResponseEntity<CancelResponseDTO> cancelRequest(@RequestBody CancelRequestDTO dto) {
+        CancelResponseDTO response = rideRequestService.cancelRequest(dto);
 
         return new ResponseEntity<>(response , HttpStatus.OK) ;
     }

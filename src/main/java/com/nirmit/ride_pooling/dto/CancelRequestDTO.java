@@ -7,5 +7,5 @@ import lombok.NonNull;
 public class CancelRequestDTO {
     @NonNull
     private Long requestId ;
-    private String message = "User Cancelled" ;
+    private String reason = "User Cancelled" ;
 }
