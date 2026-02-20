@@ -26,8 +26,7 @@ public class PricingService {
         double surgeMultiplier = surgePricingStrategy.getSurgeMultiplier();
         double utilizationFactor = utilizationFactorStrategy.getFactor(ride);
 
-        double finalPrice =
-                (baseFare + detourPenalty)
+        double finalPrice = (baseFare + detourPenalty)
                         * surgeMultiplier
                         * utilizationFactor;
 

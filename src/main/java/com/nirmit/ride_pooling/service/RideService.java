@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RideService {
 
     private final RideRepository rideRepository;
+    private final PricingSnapshotService pricingSnapshotService ;
 
     @Transactional
     public void startRide(Long rideId) {
@@ -69,9 +70,13 @@ public class RideService {
                                 .passengerId(passenger.getPassenger().getId())
                                 .pickupOrder(passenger.getPickupOrder())
                                 .dropOrder(passenger.getDropOrder())
+                                .price(pricingSnapshotService.fetchPriceFromPassenger(passenger.getPassenger().getId(), rideId))
                                 .build()
                         ).toList()
                 )
+                .totalSeatsUsed(ride.getTotalSeatsUsed())
+                .totalLuggageUsed(ride.getTotalLuggageUsed())
+                .status(ride.getStatus().name())
                 .build();
     }
 }

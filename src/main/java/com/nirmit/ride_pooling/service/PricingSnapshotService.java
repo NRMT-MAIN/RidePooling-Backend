@@ -24,4 +24,8 @@ public class PricingSnapshotService {
                 .map(PricingSnapshot::getFinalPrice)
                 .orElse(null);
     }
+
+    public Double fetchPriceFromPassenger(Long passengerId , Long rideId) {
+        return pricingSnapshotRepository.findFinalPriceByRideIdAndPassengerId(rideId , passengerId) ;
+    }
 }

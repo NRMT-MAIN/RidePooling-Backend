@@ -2,6 +2,7 @@ package com.nirmit.ride_pooling.service;
 
 import com.nirmit.ride_pooling.entity.*;
 import com.nirmit.ride_pooling.repository.CabRepository;
+import com.nirmit.ride_pooling.repository.RidePassengerRepository;
 import com.nirmit.ride_pooling.repository.RideRepository;
 import com.nirmit.ride_pooling.repository.RideRequestRepository;
 import com.nirmit.ride_pooling.validators.ConstraintValidator;
@@ -17,6 +18,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class MatchingService {
+    private final PricingService pricingService ;
+    private final RidePassengerRepository ridePassengerRepository ;
+    private final RouteOptimizationService routeOptimizationService ;
 
     private final RideRepository rideRepository;
     private final RideRequestRepository rideRequestRepository;
@@ -39,8 +43,7 @@ public class MatchingService {
 
         String prefix = newRequest.getPickupGeohash().substring(0, 5);
 
-        List<RideRequest> candidates =
-                rideRequestRepository.findAndLockCandidates(prefix, 10);
+        List<RideRequest> candidates = rideRequestRepository.findAndLockCandidates(prefix, 10);
 
         log.info("Candidates found: {}", candidates.size());
 
@@ -62,9 +65,7 @@ public class MatchingService {
                 attachToRide(ride, newRequest);
                 rideRepository.save(ride);
 
-                log.info("Attached request {} to ride {}",
-                        newRequest.getId(), ride.getId());
-
+                log.info("Attached request {} to ride {}", newRequest.getId(), ride.getId());
                 return;
             }
         }
@@ -91,7 +92,7 @@ public class MatchingService {
         int currentSeats = 0;
         int currentLuggage = 0;
 
-        // 🔹 Add new request first (anchor)
+        //  Add new request first
         group.add(newRequest);
         currentSeats += newRequest.getSeatsRequired();
         currentLuggage += newRequest.getLuggageCount();
@@ -109,6 +110,7 @@ public class MatchingService {
                 currentLuggage += req.getLuggageCount();
             }
         }
+
 
         if (group.size() < MIN_POOL_SIZE) {
             markWaiting(newRequest);
@@ -134,9 +136,13 @@ public class MatchingService {
 
         if (group.isEmpty()) return true;
 
-        return constraintValidator.areRequestsCompatible(
-                group.get(0), incoming
-        );
+        for (RideRequest existing : group) {
+            if (!constraintValidator.areRequestsCompatible(existing, incoming)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private boolean canMergeWithRide(Ride ride,
@@ -174,39 +180,61 @@ public class MatchingService {
             attachToRide(ride, req);
         }
 
+        List<RideRequest> passengers = rideRequestRepository.findByRideId(ride.getId());
+
+        int maxEta = rideRequestRepository.findByRideId(ride.getId())
+                .stream()
+                .mapToInt(r -> routeOptimizationService.estimateTravelTimeMinutes(
+                        r.getPickupLat(),
+                        r.getPickupLng(),
+                        r.getDropLat(),
+                        r.getDropLng()
+                ))
+                .max()
+                .orElse(0);
+
+        ride.setEstimatedTotalTime(maxEta);
         ride.transitionTo(RideStatus.CONFIRMED);
         rideRepository.save(ride);
 
-        log.info("Ride {} created with {} passengers",
-                ride.getId(), group.size());
+
+        for (RideRequest req : passengers) {
+            pricingService.calculatePrice(ride, req);
+        }
+
+        log.info("Ride {} created with {} passengers, ETA {} mins",
+                ride.getId(), group.size(), maxEta);
     }
 
     private void attachToRide(Ride ride, RideRequest request) {
-
-        RideRequest locked = rideRequestRepository
-                .findByIdForUpdate(request.getId())
-                .orElseThrow();
-
-        if (locked.getRide() != null) {
-            log.warn("Request already matched: {}", locked.getId());
+        if (request.getRide() != null) {
+            log.warn("Request already matched: {}", request.getId());
             return;
         }
 
         ride.setTotalSeatsUsed(
-                ride.getTotalSeatsUsed() + locked.getSeatsRequired()
+                ride.getTotalSeatsUsed() + request.getSeatsRequired()
         );
 
         ride.setTotalLuggageUsed(
-                ride.getTotalLuggageUsed() + locked.getLuggageCount()
+                ride.getTotalLuggageUsed() + request.getLuggageCount()
         );
 
-        locked.setRide(ride);
-        locked.setStatus(RideRequestStatus.MATCHED);
+        request.setRide(ride);
+        request.setStatus(RideRequestStatus.MATCHED);
 
-        rideRequestRepository.save(locked);
+        RidePassenger ridePassenger = RidePassenger.builder()
+                .id(new RidePassengerId())
+                .passenger(request.getPassenger())
+                .ride(ride)
+                .build();
 
-        log.info("Request {} attached to ride {}",
-                locked.getId(), ride.getId());
+        ridePassengerRepository.save(ridePassenger) ;
+
+        rideRequestRepository.save(request);
+
+
+        log.info("Request {} attached to ride {}", request.getId(), ride.getId());
     }
 
 
@@ -216,4 +244,5 @@ public class MatchingService {
 
         log.info("Request {} marked as WAITING", request.getId());
     }
+
 }

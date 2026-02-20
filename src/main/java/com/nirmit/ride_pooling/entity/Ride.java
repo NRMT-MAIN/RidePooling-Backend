@@ -37,7 +37,7 @@ public class Ride {
     @OneToMany(mappedBy = "ride", fetch = FetchType.LAZY)
     private List<RideRequest> rideRequests;
 
-    @OneToMany(mappedBy = "ride", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "ride", fetch = FetchType.LAZY , cascade = CascadeType.ALL)
     private List<RidePassenger> passengers ;
 
     public void transitionTo(RideStatus newStatus) {
